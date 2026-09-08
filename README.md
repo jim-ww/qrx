@@ -14,7 +14,7 @@ qrx [-d] [-f FORMAT] [-l LEVEL] [-v VERSION] [-s SCALE] [-m MARGIN] [-i]
     [-fg COLOR] [-bg COLOR] [-o FILE] [FILE]
 ```
 
-- `-d` decode: read a QR code image, write the decoded bytes
+- `-d` decode: read a barcode image, write the decoded bytes
 - `-f FORMAT` encode output format: `unicode` (default), `ansi`, `sixel`,
   `png`, `svg`
 - `-l LEVEL` error correction level: `L`, `M`, `Q`, `H` (default `M`)
@@ -32,6 +32,11 @@ qrx [-d] [-f FORMAT] [-l LEVEL] [-v VERSION] [-s SCALE] [-m MARGIN] [-i]
 `COLOR` is a name (`black`, `white`, `none`) or hex — `#RGB`, `#RGBA`,
 `#RRGGBB`, `#RRGGBBAA`. `none` is transparent, which works for `png`, `svg`
 and the terminal formats.
+
+Decoding is not limited to QR: it reads QR (including several codes in one
+image, written out newline-separated), Data Matrix, Aztec, EAN-8/13,
+UPC-A/E, Code 128, Code 39, Code 93, ITF and Codabar, and retries inverted
+if nothing matches, so light-on-dark codes work too.
 
 When encoding, `FILE` (if given) is the literal text to encode; stdin is
 read otherwise. When decoding, `FILE` is a path to an image; stdin is read

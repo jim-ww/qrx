@@ -17,7 +17,9 @@ const usage = `Usage: qrx [-d] [-f FORMAT] [-l LEVEL] [-v VERSION] [-s SCALE] [-
 
 Encode data to a QR code, or decode one back to bytes.
 
-  -d            decode: read a QR code image, write the decoded bytes
+  -d            decode: read a barcode image, write the decoded bytes. Reads
+                QR (several per image), Data Matrix, Aztec, EAN/UPC, Code
+                128/39/93, ITF and Codabar, dark or light on light or dark
   -f FORMAT     encode output format: unicode, ansi, sixel, png, svg
                 (default "unicode")
   -l LEVEL      error correction level: L, M, Q, H (default "M")
@@ -148,12 +150,11 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		}
 		defer closeIn()
 
-		data, err := decodeQR(in)
+		codes, err := decodeImage(in)
 		if err != nil {
 			return err
 		}
-		_, err = out.Write(data)
-		return err
+		return writeCodes(out, codes)
 	}
 
 	// The positional argument is the literal data to encode; stdin otherwise.
@@ -171,6 +172,25 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		return err
 	}
 	return render(out, *format, matrix, st)
+}
+
+// writeCodes writes the decoded data. A single code is written verbatim, so
+// that binary data survives the round trip byte for byte; several codes in one
+// image are separated — and terminated — by newlines, so they stay apart.
+func writeCodes(w io.Writer, codes []code) error {
+	if len(codes) == 1 {
+		_, err := w.Write(codes[0].data)
+		return err
+	}
+	for _, c := range codes {
+		if _, err := w.Write(c.data); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(w, "\n"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // isTerminal reports whether w is a character device, i.e. a terminal.

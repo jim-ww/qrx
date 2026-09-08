@@ -3,12 +3,18 @@ package main
 import (
 	"bytes"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
+	"image/png"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/makiuchi-d/gozxing"
 )
 
 // monochrome is the default black-on-white style.
@@ -27,11 +33,17 @@ func roundTrip(t *testing.T, data []byte, level string, margin, scale int) []byt
 	if err := render(&buf, "png", matrix, style{scale: scale, dark: colorBlack, light: colorWhite}); err != nil {
 		t.Fatalf("render png: %v", err)
 	}
-	got, err := decodeQR(&buf)
+	codes, err := decodeImage(&buf)
 	if err != nil {
-		t.Fatalf("decodeQR: %v", err)
+		t.Fatalf("decodeImage: %v", err)
 	}
-	return got
+	if len(codes) != 1 {
+		t.Fatalf("decodeImage found %d codes, want 1", len(codes))
+	}
+	if codes[0].format != gozxing.BarcodeFormat_QR_CODE {
+		t.Errorf("format = %v, want QR_CODE", codes[0].format)
+	}
+	return codes[0].data
 }
 
 func TestRoundTrip(t *testing.T) {
@@ -245,7 +257,7 @@ func TestRenderUnicode(t *testing.T) {
 	}
 }
 
-func TestDecodeQRErrors(t *testing.T) {
+func TestDecodeImageErrors(t *testing.T) {
 	tests := []struct {
 		name string
 		in   []byte
@@ -256,21 +268,21 @@ func TestDecodeQRErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := decodeQR(bytes.NewReader(tt.in)); err == nil {
-				t.Error("decodeQR = nil error, want error")
+			if _, err := decodeImage(bytes.NewReader(tt.in)); err == nil {
+				t.Error("decodeImage = nil error, want error")
 			}
 		})
 	}
 }
 
-func TestDecodeQRNoCode(t *testing.T) {
+func TestDecodeImageNoCode(t *testing.T) {
 	// A valid PNG that contains no QR code.
 	var buf bytes.Buffer
 	if err := renderPNG(&buf, [][]bool{{false, true}, {true, false}}, monochrome); err != nil {
 		t.Fatalf("renderPNG: %v", err)
 	}
-	if _, err := decodeQR(&buf); err == nil {
-		t.Error("decodeQR of a codeless image = nil error, want error")
+	if _, err := decodeImage(&buf); !errors.Is(err, errNoCode) {
+		t.Errorf("decodeImage of a codeless image = %v, want errNoCode", err)
 	}
 }
 
@@ -334,11 +346,11 @@ func TestRenderPNGColors(t *testing.T) {
 		t.Errorf("dark module = %v, want %v", got, navy)
 	}
 
-	got, err := decodeQR(bytes.NewReader(raw))
+	codes, err := decodeImage(bytes.NewReader(raw))
 	if err != nil {
-		t.Fatalf("decodeQR of a coloured code: %v", err)
+		t.Fatalf("decodeImage of a coloured code: %v", err)
 	}
-	if string(got) != "coloured" {
+	if got := codes[0].data; string(got) != "coloured" {
 		t.Errorf("decoded %q, want %q", got, "coloured")
 	}
 }
@@ -419,4 +431,102 @@ func TestEncodeQRVersion(t *testing.T) {
 			t.Errorf("automatic version = %d modules, want the smallest (21)", matrix.GetWidth())
 		}
 	})
+}
+
+// composeCodes lays several PNG-encoded matrices out side by side on a white
+// canvas, the way a photo of a page of stickers would.
+func composeCodes(t *testing.T, st style, texts ...string) image.Image {
+	t.Helper()
+
+	const gap = 24
+	var images []*image.Paletted
+	width, height := gap, 0
+	for _, text := range texts {
+		matrix, err := encodeQR([]byte(text), "M", 4, 0)
+		if err != nil {
+			t.Fatalf("encodeQR: %v", err)
+		}
+		img := gridToImage(matrixToGrid(matrix, st.scale, st.invert), st)
+		images = append(images, img)
+		width += img.Rect.Dx() + gap
+		height = max(height, img.Rect.Dy()+2*gap)
+	}
+
+	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
+	draw.Draw(canvas, canvas.Bounds(), &image.Uniform{st.light}, image.Point{}, draw.Src)
+	x := gap
+	for _, img := range images {
+		r := image.Rect(x, gap, x+img.Rect.Dx(), gap+img.Rect.Dy())
+		draw.Draw(canvas, r, img, image.Point{}, draw.Src)
+		x += img.Rect.Dx() + gap
+	}
+	return canvas
+}
+
+func TestDecodeImageMultipleCodes(t *testing.T) {
+	want := []string{"first", "second", "third"}
+	canvas := composeCodes(t, style{scale: 6, dark: colorBlack, light: colorWhite}, want...)
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, canvas); err != nil {
+		t.Fatalf("png.Encode: %v", err)
+	}
+
+	codes, err := decodeImage(&buf)
+	if err != nil {
+		t.Fatalf("decodeImage: %v", err)
+	}
+	got := make([]string, 0, len(codes))
+	for _, c := range codes {
+		got = append(got, string(c.data))
+	}
+	slices.Sort(got)
+	if want := []string{"first", "second", "third"}; !slices.Equal(got, want) {
+		t.Errorf("decoded %q, want %q (in any order)", got, want)
+	}
+}
+
+// -i produces a light-on-dark code, which the ALSO_INVERTED hint must handle.
+func TestDecodeImageInverted(t *testing.T) {
+	matrix, err := encodeQR([]byte("inverted"), "M", 4, 0)
+	if err != nil {
+		t.Fatalf("encodeQR: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := render(&buf, "png", matrix, style{scale: 8, invert: true, dark: colorBlack, light: colorWhite}); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	codes, err := decodeImage(&buf)
+	if err != nil {
+		t.Fatalf("decodeImage of an inverted code: %v", err)
+	}
+	if string(codes[0].data) != "inverted" {
+		t.Errorf("decoded %q, want %q", codes[0].data, "inverted")
+	}
+}
+
+func TestWriteCodes(t *testing.T) {
+	tests := []struct {
+		name  string
+		codes []code
+		want  string
+	}{
+		{"single code is verbatim", []code{{data: []byte("one")}}, "one"},
+		{"binary stays intact", []code{{data: []byte{0x00, 0xff}}}, "\x00\xff"},
+		{"several codes are newline terminated", []code{{data: []byte("a")}, {data: []byte("b")}}, "a\nb\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := writeCodes(&buf, tt.codes); err != nil {
+				t.Fatalf("writeCodes: %v", err)
+			}
+			if buf.String() != tt.want {
+				t.Errorf("writeCodes = %q, want %q", buf.String(), tt.want)
+			}
+		})
+	}
 }
