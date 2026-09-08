@@ -41,7 +41,8 @@ go install github.com/jim-ww/qrx@latest
 Or try it with Nix:
 
 ```sh
-nix run github:jim-ww/qrx
+nix run github:jim-ww/qrx             # once
+nix profile install github:jim-ww/qrx # to keep it
 ```
 
 Or add it to your flake inputs:
