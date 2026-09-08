@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -528,5 +529,46 @@ func TestWriteCodes(t *testing.T) {
 				t.Errorf("writeCodes = %q, want %q", buf.String(), tt.want)
 			}
 		})
+	}
+}
+
+// The SVG path must place a rect on exactly the dark modules, so what a
+// browser draws is the same symbol the matrix describes.
+func TestRenderSVGModules(t *testing.T) {
+	matrix, err := encodeQR([]byte("https://youtu.be/dQw4w9WgXcQ"), "M", 4, 0)
+	if err != nil {
+		t.Fatalf("encodeQR: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := render(&buf, "svg", matrix, style{scale: 8, dark: colorBlack, light: colorWhite}); err != nil {
+		t.Fatalf("render svg: %v", err)
+	}
+
+	// Each subpath is one horizontal run: M<x> <y>h<run>v1h-<run>z
+	runs := regexp.MustCompile(`M(\d+) (\d+)h(\d+)v1h-(\d+)z`).FindAllStringSubmatch(buf.String(), -1)
+	if len(runs) == 0 {
+		t.Fatal("no module runs in the svg path")
+	}
+
+	drawn := make(map[[2]int]bool)
+	for _, run := range runs {
+		x, _ := strconv.Atoi(run[1])
+		y, _ := strconv.Atoi(run[2])
+		width, _ := strconv.Atoi(run[3])
+		if back, _ := strconv.Atoi(run[4]); back != width {
+			t.Fatalf("run at (%d,%d) is %d wide but steps back %d", x, y, width, back)
+		}
+		for i := range width {
+			drawn[[2]int{x + i, y}] = true
+		}
+	}
+
+	for y := range matrix.GetHeight() {
+		for x := range matrix.GetWidth() {
+			if got, want := drawn[[2]int{x, y}], matrix.Get(x, y); got != want {
+				t.Fatalf("module (%d,%d) drawn = %v, want %v", x, y, got, want)
+			}
+		}
 	}
 }
