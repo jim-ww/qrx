@@ -47,7 +47,7 @@ if nothing matches, so light-on-dark codes work too.
 of a terminal or committed to a text file decodes like an image does:
 
 ```sh
-qrx 'https://example.com' > code.txt
+qrx 'https://youtu.be/dQw4w9WgXcQ' > code.txt
 qrx -d code.txt
 qrx 'round trip' | qrx -d
 ```
@@ -59,12 +59,12 @@ otherwise.
 ## Examples
 
 ```sh
-qrx 'https://example.com'
+qrx 'https://youtu.be/dQw4w9WgXcQ'
 echo -n 'hello' | qrx -f png -o hello.png
 qrx -d hello.png
 qrx -f sixel 'WIFI:S:myssid;T:WPA;P:pass123;;'
 qrx -f png -o - < data.bin | qrx -d -
-qrx -f svg -fg '#1e3a8a' -bg none -o code.svg 'https://example.com'
+qrx -f svg -fg '#1e3a8a' -bg none -o code.svg 'https://youtu.be/dQw4w9WgXcQ'
 qrx -v 10 -l H -o backup.png < secret.key
 qrx -t ean13 -f png -o barcode.png 5901234123457
 qrx -t code128 -bh 30 'PKG-00417'

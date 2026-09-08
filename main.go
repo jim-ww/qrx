@@ -50,11 +50,11 @@ COLOR is a name (black, white, none) or hex: #RGB, #RGBA, #RRGGBB, #RRGGBBAA.
 FILE is the input to encode/decode; stdin is read if omitted.
 
 Examples:
-  qrx 'https://example.com'
+  qrx 'https://youtu.be/dQw4w9WgXcQ'
   echo -n 'hello' | qrx -f png -o hello.png
   qrx -d hello.png
   qrx -f sixel 'WIFI:S:myssid;T:WPA;P:pass123;;'
-  qrx -f svg -fg '#1e3a8a' -bg none -o code.svg 'https://example.com'
+  qrx -f svg -fg '#1e3a8a' -bg none -o code.svg 'https://youtu.be/dQw4w9WgXcQ'
   qrx -t ean13 -f png -o barcode.png 5901234123457
 `
 
