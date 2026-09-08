@@ -303,3 +303,58 @@ func TestRunBarcodeBadContent(t *testing.T) {
 		t.Errorf("error = %v, want a plain error, not a usage error", err)
 	}
 }
+
+// A failure while encoding must leave the file named by -o alone: it is
+// opened only once the output exists in full.
+func TestRunKeepsOutputFileOnFailure(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"content the symbology cannot hold", []string{"-t", "ean13", "12345"}},
+		{"data too big for the pinned version", []string{"-v", "1", "-l", "H", strings.Repeat("x", 100)}},
+		{"content data matrix would mangle", []string{"-t", "datamatrix", "\x00\x01\xfe\xff\x80\x7f"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "keep.png")
+			const contents = "precious"
+			if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := run(append(tt.args, "-o", path), strings.NewReader(""), &bytes.Buffer{}); err == nil {
+				t.Fatal("run = nil error, want error")
+			}
+			got, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != contents {
+				t.Errorf("output file = %q, want it untouched (%q)", got, contents)
+			}
+		})
+	}
+}
+
+// Decoding failures must not touch it either.
+func TestRunKeepsOutputFileOnDecodeFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keep.txt")
+	const contents = "precious"
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := run([]string{"-d", "-o", path}, strings.NewReader("not an image"), &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("run = nil error, want error")
+	}
+	got, readErr := os.ReadFile(path)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(got) != contents {
+		t.Errorf("output file = %q, want it untouched (%q)", got, contents)
+	}
+}

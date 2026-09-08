@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"cmp"
 	"errors"
 	"flag"
@@ -40,12 +41,13 @@ Encode data to a QR code or a barcode, or decode one back to bytes.
                 symbol width (default 0)
   -i            invert: light modules on a dark background
   -fg COLOR     colour of the dark modules (default "black")
-  -bg COLOR     colour of the background (default "white")
+  -bg COLOR     colour of the background (default "white"); "none" for
+                transparent
   -o FILE       write output to FILE instead of stdout
   -h            show this help
 
 COLOR is a name (black, white, none) or hex: #RGB, #RGBA, #RRGGBB, #RRGGBBAA.
-"none" is transparent, for png, svg and the terminal formats.
+Transparency works for png, svg and the terminal formats.
 
 FILE is the input to encode/decode; stdin is read if omitted.
 
@@ -167,11 +169,9 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		}
 	}
 
-	out, closeOut, err := openOutput(*output, stdout)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, closeOut()) }()
+	// The output is built in full before anything is opened, so a failure
+	// part way through cannot truncate the file named by -o.
+	var out bytes.Buffer
 
 	if *decode {
 		// The positional argument is a path to an image file; stdin otherwise.
@@ -185,32 +185,45 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		if err != nil {
 			return err
 		}
-		return writeCodes(out, codes)
-	}
-
-	// The positional argument is the literal data to encode; stdin otherwise.
-	var data []byte
-	if fs.NArg() == 1 {
-		data = []byte(fs.Arg(0))
+		if err := writeCodes(&out, codes); err != nil {
+			return err
+		}
 	} else {
-		if data, err = io.ReadAll(stdin); err != nil {
-			return fmt.Errorf("reading stdin: %w", err)
+		// The positional argument is the literal data to encode; stdin otherwise.
+		var data []byte
+		if fs.NArg() == 1 {
+			data = []byte(fs.Arg(0))
+		} else {
+			if data, err = io.ReadAll(stdin); err != nil {
+				return fmt.Errorf("reading stdin: %w", err)
+			}
+		}
+
+		var matrix *gozxing.BitMatrix
+		switch {
+		case sym.oneD:
+			matrix, err = encodeBarcode(data, sym, *margin, *barHeight)
+		case sym.format == gozxing.BarcodeFormat_DATA_MATRIX:
+			matrix, err = encodeDataMatrix(data, *margin)
+		default:
+			matrix, err = encodeQR(data, ecLevel, *margin, *version)
+		}
+		if err != nil {
+			return err
+		}
+		if err := render(&out, *format, matrix, st); err != nil {
+			return err
 		}
 	}
 
-	var matrix *gozxing.BitMatrix
-	switch {
-	case sym.oneD:
-		matrix, err = encodeBarcode(data, sym, *margin, *barHeight)
-	case sym.format == gozxing.BarcodeFormat_DATA_MATRIX:
-		matrix, err = encodeDataMatrix(data, *margin)
-	default:
-		matrix, err = encodeQR(data, ecLevel, *margin, *version)
-	}
+	w, closeOut, err := openOutput(*output, stdout)
 	if err != nil {
 		return err
 	}
-	return render(out, *format, matrix, st)
+	defer func() { err = errors.Join(err, closeOut()) }()
+
+	_, err = w.Write(out.Bytes())
+	return err
 }
 
 // writeCodes writes the decoded data. A single code is written verbatim, so
