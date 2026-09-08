@@ -116,8 +116,8 @@ qrx -t code128 -bh 30 'PKG-00417'
 qrx -t datamatrix -f png -o part.png 'PN:4815162342'
 ```
 
-Only `qr` carries arbitrary bytes. `datamatrix` is reliable for text but not
-for binary.
+`qr` takes any input, text or binary, and gives it back byte for byte. The
+other symbologies are for text, and refuse content they cannot encode.
 
 On a dark terminal the blocks come out light-on-dark — an inverted code, so
 pass `-i` if a scanner refuses it.

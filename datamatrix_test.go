@@ -156,3 +156,52 @@ func TestRunDataMatrixUsageErrors(t *testing.T) {
 		})
 	}
 }
+
+// Content that gozxing would mangle must be refused, not printed: a label that
+// scans as something else is worse than no label. Binary that happens to
+// survive is still accepted — the guard is the round trip itself, not a guess
+// about which bytes are safe.
+func TestEncodeDataMatrixRefusesMangledContent(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{"binary", []byte{0x00, 0x01, 0xfe, 0xff, 0x80, 0x7f}},
+		{"high bytes", bytes.Repeat([]byte{0xaa}, 20)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := encodeDataMatrix(tt.data, 4)
+			if err == nil {
+				t.Fatal("encodeDataMatrix accepted content it cannot round trip")
+			}
+			if !strings.Contains(err.Error(), "-t qr") {
+				t.Errorf("error %q does not point at -t qr", err)
+			}
+		})
+	}
+}
+
+// Whatever encodeDataMatrix does return is guaranteed to read back.
+func TestEncodeDataMatrixAcceptedContentRoundTrips(t *testing.T) {
+	for n := 1; n <= 60; n++ {
+		data := bytes.Repeat([]byte("Part7Number9Xyz-"), 1+n/16)[:n]
+		matrix, err := encodeDataMatrix(data, 4)
+		if err != nil {
+			t.Fatalf("length %d: encodeDataMatrix: %v", n, err)
+		}
+
+		var buf bytes.Buffer
+		if err := render(&buf, "png", matrix, style{scale: 6, dark: colorBlack, light: colorWhite}); err != nil {
+			t.Fatalf("length %d: render: %v", n, err)
+		}
+		codes, err := decodeImage(&buf)
+		if err != nil {
+			t.Fatalf("length %d: decodeImage: %v", n, err)
+		}
+		if !bytes.Equal(codes[0].data, data) {
+			t.Errorf("length %d: round trip = %q, want %q", n, codes[0].data, data)
+		}
+	}
+}

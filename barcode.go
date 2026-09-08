@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -38,7 +39,7 @@ var symbologies = map[string]symbology{
 	"datamatrix": {
 		format:    gozxing.BarcodeFormat_DATA_MATRIX,
 		newWriter: datamatrix.NewDataMatrixWriter,
-		accepts:   "text; only qr carries arbitrary bytes",
+		accepts:   "text; use -t qr for binary",
 	},
 	"code128": {format: gozxing.BarcodeFormat_CODE_128, oneD: true,
 		newWriter: oned.NewCode128Writer,
@@ -134,15 +135,43 @@ func encodeBarcode(data []byte, sym symbology, margin, barHeight int) (*gozxing.
 // The decoded data comes back with a leading zero byte and trailing pad bytes,
 // or empty for very short input — measured at 40/40 ASCII payloads intact
 // against 27/40 random binary ones. Whether the writer or the reader is at
-// fault is not visible from here, so qrx documents Data Matrix as a text
-// symbology and leaves byte-exactness to -t qr.
+// fault is not visible from here.
+//
+// Silently printing a label that scans as something else is the worst way to
+// lose, so the symbol is read back before it is returned and content that does
+// not survive is refused. Only Data Matrix pays for this; the other
+// symbologies are sound.
 func encodeDataMatrix(data []byte, margin int) (*gozxing.BitMatrix, error) {
 	sym := symbologies["datamatrix"]
 	matrix, err := sym.newWriter().Encode(toLatin1String(data), sym.format, 0, 0, nil)
 	if err != nil {
 		return nil, barcodeError(sym, data, err)
 	}
+	if err := verifyDataMatrix(matrix, data); err != nil {
+		return nil, err
+	}
 	return padMatrix(matrix, margin, margin)
+}
+
+// verifyDataMatrix decodes the symbol just encoded and checks it still says
+// what it was given. See encodeDataMatrix for why this is worth the work.
+func verifyDataMatrix(matrix *gozxing.BitMatrix, data []byte) error {
+	// A generous quiet zone and scale, so a failure here means the symbol is
+	// wrong rather than merely hard to read.
+	var buf bytes.Buffer
+	padded, err := padMatrix(matrix, 4, 4)
+	if err != nil {
+		return err
+	}
+	if err := render(&buf, "png", padded, style{scale: 6, dark: colorBlack, light: colorWhite}); err != nil {
+		return err
+	}
+
+	codes, err := decodeImage(&buf)
+	if err == nil && bytes.Equal(codes[0].data, data) {
+		return nil
+	}
+	return errors.New("encode: this content does not survive Data Matrix encoding in gozxing, which mangles binary data; use -t qr for anything that is not text")
 }
 
 // padMatrix surrounds the symbol with quiet zone: x modules on the left and

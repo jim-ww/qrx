@@ -25,7 +25,7 @@ Encode data to a QR code or a barcode, or decode one back to bytes.
                 from an image file or from qrx's own unicode/ansi output
   -t TYPE       symbology to encode: qr (default), datamatrix, code128,
                 code39, code93, codabar, ean8, ean13, upca, upce, itf.
-                Only qr carries arbitrary bytes; datamatrix is for text
+                qr takes any input; the rest are for text
   -f FORMAT     encode output format: unicode, ansi, sixel, png, svg
                 (default "unicode")
   -l LEVEL      error correction level: L, M, Q, H (qr only, default "M")
