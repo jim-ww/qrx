@@ -7,6 +7,29 @@ byte for byte, and writes the common 1D barcode symbologies too.
 Behaves like a Unix filter (`base64`, `gzip`): reads from a file argument or
 stdin, writes to stdout or `-o FILE`.
 
+```console
+$ qrx 'https://youtu.be/dQw4w9WgXcQ'
+
+
+    █▀▀▀▀▀█ █▀▄  █▀▀▄ █ ▀ █▀▀▀▀▀█
+    █ ███ █ ▄██ ▀ ▄▄▀▄▀ ▄ █ ███ █
+    █ ▀▀▀ █  █▀▀█▄▀▄██▀█▄ █ ▀▀▀ █
+    ▀▀▀▀▀▀▀ █▄█ ▀ ▀▄█ █▄▀ ▀▀▀▀▀▀▀
+    █▄▀█▄█▀▀▄ ▀ ▄█▄█   ▀▀ ▀▄▄█ █▀
+    ▀ ▀▄▀▄▀▄█▀█ ▄▀  █▀█▄▄█ ▄▀▀ █
+    ▄▀▄▀ ▀▀▀█   █ █▀▄█▄    ▀▄▄▄
+    ▄  ▀█▄▀ ▀▀ ▀ ▀▄▀█▀██▄▀█▄█ ▀▄▄
+         █▀▄██▄▄  █▀█ █ ▄█▄ ▄ ▀▀▄
+    ▀  ▀ ▄▀▄ █▄ ▀██▀▀ ▄█▄▀▄▀ ▀█▄▀
+     ▀▀▀ ▀▀▀██▀  ▀▀▄█ ▄██▀▀▀█ ▀▄▀
+    █▀▀▀▀▀█ █ ▄▀█▄██  ▀ █ ▀ ██▄█▄
+    █ ███ █ ▄█  ▀    ██ ▀██▀█ █▀
+    █ ▀▀▀ █ ▀██▀▀ █▄▀ ▀ ▄  ▀▀██ █
+    ▀▀▀▀▀▀▀ ▀▀  ▀   ▀▀  ▀ ▀▀ ▀ ▀
+
+
+```
+
 ## Usage
 
 ```
