@@ -30,6 +30,24 @@ $ qrx 'https://youtu.be/dQw4w9WgXcQ'
 
 ```
 
+## Install
+
+With Nix:
+
+```sh
+nix run github:jim-ww/qrx -- 'https://youtu.be/dQw4w9WgXcQ'   # run it once
+nix profile install github:jim-ww/qrx                          # keep it
+```
+
+Or with Go:
+
+```sh
+go install github.com/jim-ww/qrx@latest
+```
+
+The flake also provides a dev shell — `nix develop` gives you Go, gopls and
+golangci-lint.
+
 ## Usage
 
 ```
