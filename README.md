@@ -43,6 +43,15 @@ image, written out newline-separated), Data Matrix, Aztec, EAN-8/13,
 UPC-A/E, Code 128, Code 39, Code 93, ITF and Codabar, and retries inverted
 if nothing matches, so light-on-dark codes work too.
 
+`-d` also reads back the `unicode` and `ansi` output, so a code pasted out
+of a terminal or committed to a text file decodes like an image does:
+
+```sh
+qrx 'https://example.com' > code.txt
+qrx -d code.txt
+qrx 'round trip' | qrx -d
+```
+
 When encoding, `FILE` (if given) is the literal text to encode; stdin is
 read otherwise. When decoding, `FILE` is a path to an image; stdin is read
 otherwise.
@@ -74,9 +83,9 @@ inverted code — use `-i` if your scanner refuses it.
 `svg` and `png` are the formats to keep; `unicode`, `ansi` and `sixel` are
 for reading on screen.
 
-Only `png` output is decodable — it's the only format that preserves exact
-pixel data. `unicode`/`ansi`/`sixel` are for reading with your eyes (or a
-phone camera), not round-tripping through `qrx -d`.
+`sixel` is the one output `qrx -d` cannot read back: it is a real image
+encoding, and the library behind it only encodes. Everything else — `png`,
+`unicode`, `ansi` — round trips. `svg` does not decode either.
 
 ## Support the project
 

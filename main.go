@@ -21,7 +21,8 @@ Encode data to a QR code or a barcode, or decode one back to bytes.
 
   -d            decode: read a barcode image, write the decoded bytes. Reads
                 QR (several per image), Data Matrix, Aztec, EAN/UPC, Code
-                128/39/93, ITF and Codabar, dark or light on light or dark
+                128/39/93, ITF and Codabar, dark or light on light or dark,
+                from an image file or from qrx's own unicode/ansi output
   -t TYPE       symbology to encode: qr (default), datamatrix, code128,
                 code39, code93, codabar, ean8, ean13, upca, upce, itf.
                 Only qr carries arbitrary bytes; datamatrix is for text

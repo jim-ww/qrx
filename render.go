@@ -55,6 +55,23 @@ func matrixToGrid(m *gozxing.BitMatrix, scale int, invert bool) [][]bool {
 	return grid
 }
 
+// upscaleGrid repeats every cell n times in both dimensions.
+func upscaleGrid(grid [][]bool, n int) [][]bool {
+	scaled := make([][]bool, 0, len(grid)*n)
+	for _, row := range grid {
+		wide := make([]bool, 0, len(row)*n)
+		for _, v := range row {
+			for range n {
+				wide = append(wide, v)
+			}
+		}
+		for range n {
+			scaled = append(scaled, slices.Clone(wide))
+		}
+	}
+	return scaled
+}
+
 // gridToImage draws the grid as a two-colour paletted image, which is both the
 // smallest thing to PNG-encode and the fast path in the sixel encoder.
 func gridToImage(grid [][]bool, st style) *image.Paletted {

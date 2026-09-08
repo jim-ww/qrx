@@ -26,12 +26,28 @@ type code struct {
 	data   []byte
 }
 
+// terminalDecodeScale is how many pixels per module a grid parsed back from
+// terminal output is drawn at before being handed to the readers.
+const terminalDecodeScale = 4
+
 // decodeImage finds every barcode in the image read from r, trying the
 // supported symbologies in turn and, failing those, the inverted image.
 func decodeImage(r io.Reader) ([]code, error) {
-	img, _, err := image.Decode(r)
+	data, err := io.ReadAll(r)
 	if err != nil {
-		return nil, fmt.Errorf("decode image: %w", err)
+		return nil, fmt.Errorf("read input: %w", err)
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		// Not an image: it may still be a code drawn with terminal characters,
+		// which is what qrx itself writes without -f png.
+		grid, terr := parseTerminalGrid(data)
+		if terr != nil {
+			return nil, fmt.Errorf("decode image: %w", err)
+		}
+		// The readers want more than one pixel per module to work with.
+		img = gridToImage(upscaleGrid(grid, terminalDecodeScale), style{dark: colorBlack, light: colorWhite})
 	}
 
 	bitmap, err := gozxing.NewBinaryBitmapFromImage(img)
