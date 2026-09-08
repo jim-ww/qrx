@@ -358,3 +358,44 @@ func TestRunKeepsOutputFileOnDecodeFailure(t *testing.T) {
 		t.Errorf("output file = %q, want it untouched (%q)", got, contents)
 	}
 }
+
+// A code nobody can see is not a code.
+func TestRunRejectsInvisibleCodes(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"transparent modules", []string{"-fg", "none", "data"}},
+		{"transparent modules by hex", []string{"-fg", "#00000000", "data"}},
+		{"same colour twice", []string{"-fg", "white", "-bg", "white", "data"}},
+		{"same colour, different spelling", []string{"-fg", "#fff", "-bg", "#ffffff", "data"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ue *usageError
+			if err := run(tt.args, strings.NewReader(""), &bytes.Buffer{}); !errors.As(err, &ue) {
+				t.Errorf("run(%q) error = %v, want *usageError", tt.args, err)
+			}
+		})
+	}
+
+	// A transparent background is still fine: the modules are what must be seen.
+	if err := run([]string{"-f", "png", "-bg", "none", "data"}, strings.NewReader(""), &bytes.Buffer{}); err != nil {
+		t.Errorf("run with a transparent background = %v, want nil", err)
+	}
+}
+
+// The encoding flags mean nothing when decoding, so they are refused rather
+// than quietly ignored.
+func TestRunRejectsEncodingFlagsWhenDecoding(t *testing.T) {
+	for _, flag := range []string{"-t=qr", "-f=png", "-l=H", "-v=5", "-s=2", "-m=2", "-bh=20", "-i", "-fg=red", "-bg=blue"} {
+		t.Run(flag, func(t *testing.T) {
+			var ue *usageError
+			err := run([]string{"-d", flag}, strings.NewReader(""), &bytes.Buffer{})
+			if !errors.As(err, &ue) {
+				t.Errorf("run(-d %s) error = %v, want *usageError", flag, err)
+			}
+		})
+	}
+}

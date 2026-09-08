@@ -167,6 +167,22 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		if st.light, err = parseColor(*bg); err != nil {
 			return usagef("invalid -bg: %v", err)
 		}
+		// Both of these produce a symbol that is there but cannot be seen, and
+		// so cannot be scanned.
+		if st.dark.A == 0 {
+			return usagef("invalid -fg: the dark modules cannot be transparent")
+		}
+		if st.dark == st.light {
+			return usagef("invalid -fg and -bg: both are %s, which leaves nothing to read", *fg)
+		}
+	} else {
+		// Decoding takes the input as it finds it; the encoding flags would be
+		// quietly ignored, which is worse than saying so.
+		for _, name := range []string{"t", "f", "l", "v", "s", "m", "bh", "i", "fg", "bg"} {
+			if set[name] {
+				return usagef("-%s applies to encoding, not to -d", name)
+			}
+		}
 	}
 
 	// The output is built in full before anything is opened, so a failure
