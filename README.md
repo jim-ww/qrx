@@ -69,8 +69,7 @@ symbologies each accept their own alphabet — digits for EAN/UPC/ITF, printable
 says what a symbology wants when the content does not fit it.
 
 On a dark terminal the block characters render light-on-dark, which is an
-inverted code — use `-i` if your scanner refuses it. `qrx` will not dump a
-PNG straight into a terminal: redirect it, pipe it, or use `-o`.
+inverted code — use `-i` if your scanner refuses it.
 
 `svg` and `png` are the formats to keep; `unicode`, `ansi` and `sixel` are
 for reading on screen.

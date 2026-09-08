@@ -136,29 +136,6 @@ func TestRunDefaultScale(t *testing.T) {
 	}
 }
 
-// Dumping a PNG into a terminal is never what the user meant.
-func TestRunRefusesPNGOnTerminal(t *testing.T) {
-	// /dev/null is a character device, so it looks like a terminal.
-	tty, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-	if err != nil {
-		t.Skipf("cannot open %s: %v", os.DevNull, err)
-	}
-	defer func() { _ = tty.Close() }()
-
-	var ue *usageError
-	if err := run([]string{"-f", "png", "data"}, strings.NewReader(""), tty); !errors.As(err, &ue) {
-		t.Errorf("run(-f png) to a terminal = %v, want *usageError", err)
-	}
-	// Piped or redirected output is fine.
-	if err := run([]string{"-f", "png", "data"}, strings.NewReader(""), &bytes.Buffer{}); err != nil {
-		t.Errorf("run(-f png) to a pipe = %v, want nil", err)
-	}
-	// So is -o, even when it points at a character device.
-	if err := run([]string{"-f", "png", "-o", os.DevNull, "data"}, strings.NewReader(""), tty); err != nil {
-		t.Errorf("run(-f png -o %s) = %v, want nil", os.DevNull, err)
-	}
-}
-
 func TestRunInvert(t *testing.T) {
 	var plain, inverted bytes.Buffer
 	if err := run([]string{"data"}, strings.NewReader(""), &plain); err != nil {

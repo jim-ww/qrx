@@ -166,12 +166,6 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		}
 	}
 
-	// A PNG dumped into a terminal is unreadable noise that can leave the
-	// terminal in a strange state, and it is nearly always a forgotten -o.
-	if *format == "png" && *output == "" && isTerminal(stdout) {
-		return usagef("refusing to write PNG to the terminal: use -o FILE, or pipe the output")
-	}
-
 	out, closeOut, err := openOutput(*output, stdout)
 	if err != nil {
 		return err
@@ -235,16 +229,6 @@ func writeCodes(w io.Writer, codes []code) error {
 		}
 	}
 	return nil
-}
-
-// isTerminal reports whether w is a character device, i.e. a terminal.
-func isTerminal(w io.Writer) bool {
-	f, ok := w.(*os.File)
-	if !ok {
-		return false
-	}
-	info, err := f.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 // openInput returns the file at path, or fallback when path is empty or "-".
