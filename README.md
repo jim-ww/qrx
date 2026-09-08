@@ -1,0 +1,71 @@
+# qrx
+
+Minimalistic QR code encoder/decoder for the terminal. Encodes arbitrary
+bytes (not just text) to a QR code and decodes them back exactly, byte for
+byte.
+
+Behaves like a Unix filter (`base64`, `gzip`): reads from a file argument or
+stdin, writes to stdout or `-o FILE`.
+
+## Usage
+
+```
+qrx [-d] [-f FORMAT] [-l LEVEL] [-v VERSION] [-s SCALE] [-m MARGIN] [-i]
+    [-fg COLOR] [-bg COLOR] [-o FILE] [FILE]
+```
+
+- `-d` decode: read a QR code image, write the decoded bytes
+- `-f FORMAT` encode output format: `unicode` (default), `ansi`, `sixel`,
+  `png`, `svg`
+- `-l LEVEL` error correction level: `L`, `M`, `Q`, `H` (default `M`)
+- `-v VERSION` symbol version 1–40, i.e. size; 0 (the default) picks the
+  smallest that fits the data
+- `-s SCALE` repeat factor for `unicode`/`ansi`/`sixel`, pixels per module
+  for `png`/`svg` (0, the default, picks 1 — or 8 for `png` and `svg`)
+- `-m MARGIN` quiet zone width in modules; the QR spec asks for 4 (default 4)
+- `-i` invert: light modules on a dark background
+- `-fg COLOR` colour of the dark modules (default `black`)
+- `-bg COLOR` colour of the background (default `white`)
+- `-o FILE` write output to `FILE` instead of stdout
+- `-h` show help
+
+`COLOR` is a name (`black`, `white`, `none`) or hex — `#RGB`, `#RGBA`,
+`#RRGGBB`, `#RRGGBBAA`. `none` is transparent, which works for `png`, `svg`
+and the terminal formats.
+
+When encoding, `FILE` (if given) is the literal text to encode; stdin is
+read otherwise. When decoding, `FILE` is a path to an image; stdin is read
+otherwise.
+
+## Examples
+
+```sh
+qrx 'https://example.com'
+echo -n 'hello' | qrx -f png -o hello.png
+qrx -d hello.png
+qrx -f sixel 'WIFI:S:myssid;T:WPA;P:pass123;;'
+qrx -f png -o - < data.bin | qrx -d -
+qrx -f svg -fg '#1e3a8a' -bg none -o code.svg 'https://example.com'
+qrx -v 10 -l H -o backup.png < secret.key
+```
+
+On a dark terminal the block characters render light-on-dark, which is an
+inverted code — use `-i` if your scanner refuses it. `qrx` will not dump a
+PNG straight into a terminal: redirect it, pipe it, or use `-o`.
+
+`svg` and `png` are the formats to keep; `unicode`, `ansi` and `sixel` are
+for reading on screen.
+
+Only `png` output is decodable — it's the only format that preserves exact
+pixel data. `unicode`/`ansi`/`sixel` are for reading with your eyes (or a
+phone camera), not round-tripping through `qrx -d`.
+
+## Support the project
+
+**Monero (XMR)**
+
+`83YGRqP8uHed6NeegZQeX9ccCxbzoRHHEEi7pTwk4aqdJZEVXXA6NWtetnsEM2v33zFBBt3Rp6DNhU9qhJEGPspU14yN8t7`
+
+## License
+
+GPL-3.0. Free to use, study, share, and modify — provided you keep the same freedoms for others.

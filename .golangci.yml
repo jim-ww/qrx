@@ -1,0 +1,24 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - gocritic
+    - nilerr
+    - revive
+    - unconvert
+  settings:
+    errcheck:
+      # bufio.Writer latches its first error; the renderers check Flush.
+      exclude-functions:
+        # Every fmt.Fprint* here targets a bufio.Writer or stderr diagnostics.
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*bufio.Writer).WriteByte
+        - (*bufio.Writer).WriteRune
+        - (*bufio.Writer).WriteString
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
