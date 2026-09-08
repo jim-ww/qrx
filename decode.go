@@ -122,33 +122,44 @@ func codesFromResults(results []*gozxing.Result) []code {
 
 // resultBytes returns the exact bytes that were originally encoded.
 //
-// For QR it prefers the raw byte-mode segments (BYTE_SEGMENTS metadata) over
-// Result.GetText(), because GetText() runs the decoded bytes through a charset
-// decoder and can mangle data that isn't valid text in that charset. Falling
-// back to GetText() only happens when the symbol was encoded in a mode —
-// NUMERIC or ALPHANUMERIC for QR, and every 1D symbology — whose text is a
-// lossless representation of the data anyway.
+// Two sources describe the content, and neither is right on its own. The
+// BYTE_SEGMENTS metadata holds raw bytes, but only for the segments encoded in
+// a byte mode: a QR code that mixes numeric or alphanumeric runs with byte runs
+// reports only the byte ones, and a Data Matrix reports only its Base256 runs.
+// Result.GetText() covers everything, but it has been through a charset
+// decoder, which mangles data that is not text in that charset.
 //
-// Data Matrix is the exception: its byte segments hold only the Base256 runs,
-// so a symbol that mixes encodations reports far less than it carries. Its
-// text is decoded as ISO-8859-1 and covers everything, so the bytes come back
-// out of that instead.
+// So take the one that accounts for more of the symbol. A byte segment is one
+// byte per character and a charset decoder never produces more characters than
+// it consumed bytes, which makes "text longer than the segments" proof that the
+// segments are missing part of the symbol.
 func resultBytes(result *gozxing.Result) []byte {
-	if result.GetBarcodeFormat() == gozxing.BarcodeFormat_DATA_MATRIX {
-		if data, ok := fromLatin1String(result.GetText()); ok {
-			return data
-		}
-		return []byte(result.GetText())
+	text := result.GetText()
+	if segments := byteSegments(result); len(segments) >= len([]rune(text)) && len(segments) > 0 {
+		return segments
 	}
+	// The decoders use ISO-8859-1 for anything they cannot place, so text whose
+	// code points all fit in a byte is a faithful copy of those bytes.
+	if data, ok := fromLatin1String(text); ok {
+		return data
+	}
+	return []byte(text)
+}
 
-	if segs, ok := result.GetResultMetadata()[gozxing.ResultMetadataType_BYTE_SEGMENTS]; ok {
-		if byteSegments, ok := segs.([][]byte); ok && len(byteSegments) > 0 {
-			var buf bytes.Buffer
-			for _, seg := range byteSegments {
-				buf.Write(seg)
-			}
-			return buf.Bytes()
-		}
+// byteSegments concatenates the raw byte-mode segments of a result, if it
+// reports any.
+func byteSegments(result *gozxing.Result) []byte {
+	segs, ok := result.GetResultMetadata()[gozxing.ResultMetadataType_BYTE_SEGMENTS]
+	if !ok {
+		return nil
 	}
-	return []byte(result.GetText())
+	byteSegments, ok := segs.([][]byte)
+	if !ok {
+		return nil
+	}
+	var buf bytes.Buffer
+	for _, seg := range byteSegments {
+		buf.Write(seg)
+	}
+	return buf.Bytes()
 }
