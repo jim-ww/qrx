@@ -171,7 +171,7 @@ func verifyDataMatrix(matrix *gozxing.BitMatrix, data []byte) error {
 	if err == nil && bytes.Equal(codes[0].data, data) {
 		return nil
 	}
-	return errors.New("encode: this content does not survive Data Matrix encoding in gozxing, which mangles binary data; use -t qr for anything that is not text")
+	return errors.New("encode: a data matrix of this content does not read back as what went in; use -t qr for binary data")
 }
 
 // padMatrix surrounds the symbol with quiet zone: x modules on the left and
@@ -198,12 +198,9 @@ func padMatrix(m *gozxing.BitMatrix, x, y int) (*gozxing.BitMatrix, error) {
 }
 
 // barcodeError turns a writer complaint into something that says what this
-// symbology actually wants, without gozxing's Java exception names.
+// symbology actually wants.
 func barcodeError(sym symbology, data []byte, err error) error {
-	msg := err.Error()
-	for _, prefix := range []string{"WriterException: ", "IllegalArgumentException: "} {
-		msg = strings.TrimPrefix(msg, prefix)
-	}
+	msg := encodeErrorMessage(err)
 	if bytes.HasSuffix(data, []byte("\n")) {
 		return fmt.Errorf("encode: %s (%s takes %s; the input ends with a newline, try printf or echo -n)",
 			msg, sym.name, sym.accepts)

@@ -21,6 +21,17 @@ func toLatin1String(data []byte) string {
 	return sb.String()
 }
 
+// encodeErrorMessage strips the Java exception names the encoders carry over
+// from the library they were ported from. They mean nothing to anyone running
+// the command.
+func encodeErrorMessage(err error) string {
+	msg := err.Error()
+	for _, prefix := range []string{"WriterException: ", "IllegalArgumentException: "} {
+		msg = strings.TrimPrefix(msg, prefix)
+	}
+	return msg
+}
+
 // fromLatin1String is the inverse of toLatin1String: it recovers the bytes
 // from a string whose code points are all U+0000-U+00FF, and reports whether
 // the string was in that range at all.
@@ -52,9 +63,9 @@ func encodeQR(data []byte, ecLevel string, margin, version int) (*gozxing.BitMat
 	matrix, err := writer.Encode(toLatin1String(data), gozxing.BarcodeFormat_QR_CODE, 0, 0, hints)
 	if err != nil {
 		if version != 0 {
-			return nil, fmt.Errorf("encode: %w (try a larger -v, a lower -l, or less data)", err)
+			return nil, fmt.Errorf("encode: %s (try a larger -v, a lower -l, or less data)", encodeErrorMessage(err))
 		}
-		return nil, fmt.Errorf("encode: %w", err)
+		return nil, fmt.Errorf("encode: %s (try a lower -l, or less data)", encodeErrorMessage(err))
 	}
 	return matrix, nil
 }
