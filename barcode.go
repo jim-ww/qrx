@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/makiuchi-d/gozxing"
+	"github.com/makiuchi-d/gozxing/datamatrix"
 	"github.com/makiuchi-d/gozxing/oned"
 )
 
@@ -30,10 +31,15 @@ type symbology struct {
 	accepts   string // what the content has to look like, for error messages
 }
 
-// symbologies are the types -t accepts. QR is the default and the only 2D
-// entry: it is the one that carries arbitrary bytes.
+// symbologies are the types -t accepts. qr is the default; it and datamatrix
+// are the 2D entries, and the only ones that carry arbitrary bytes.
 var symbologies = map[string]symbology{
 	"qr": {format: gozxing.BarcodeFormat_QR_CODE, accepts: "any bytes"},
+	"datamatrix": {
+		format:    gozxing.BarcodeFormat_DATA_MATRIX,
+		newWriter: datamatrix.NewDataMatrixWriter,
+		accepts:   "text; only qr carries arbitrary bytes",
+	},
 	"code128": {format: gozxing.BarcodeFormat_CODE_128, oneD: true,
 		newWriter: oned.NewCode128Writer,
 		accepts:   "printable ASCII",
@@ -112,25 +118,50 @@ func encodeBarcode(data []byte, sym symbology, margin, barHeight int) (*gozxing.
 	if err != nil {
 		return nil, barcodeError(sym, data, err)
 	}
-	return padVertically(matrix, margin)
+	return padMatrix(matrix, 0, margin)
 }
 
-// padVertically adds margin rows of quiet zone above and below the symbol. The
-// 1D writers only pad the sides, and a barcode flush against the top of a PNG
-// scans poorly.
-func padVertically(m *gozxing.BitMatrix, margin int) (*gozxing.BitMatrix, error) {
-	if margin == 0 {
+// encodeDataMatrix encodes data as a Data Matrix symbol surrounded by margin
+// modules of quiet zone.
+//
+// The content goes through toLatin1String for the same reason it does for QR:
+// the encoder runs the string through an ISO-8859-1 encoder before it starts,
+// so every byte has to arrive as the code point of the same value. The writer
+// has no MARGIN hint, so the quiet zone is ours to add.
+//
+// Text is safe here, but binary is not: content that pushes the encoder into
+// Base256 encodation does not survive a round trip through gozxing v0.1.1.
+// The decoded data comes back with a leading zero byte and trailing pad bytes,
+// or empty for very short input — measured at 40/40 ASCII payloads intact
+// against 27/40 random binary ones. Whether the writer or the reader is at
+// fault is not visible from here, so qrx documents Data Matrix as a text
+// symbology and leaves byte-exactness to -t qr.
+func encodeDataMatrix(data []byte, margin int) (*gozxing.BitMatrix, error) {
+	sym := symbologies["datamatrix"]
+	matrix, err := sym.newWriter().Encode(toLatin1String(data), sym.format, 0, 0, nil)
+	if err != nil {
+		return nil, barcodeError(sym, data, err)
+	}
+	return padMatrix(matrix, margin, margin)
+}
+
+// padMatrix surrounds the symbol with quiet zone: x modules on the left and
+// right, y modules on the top and bottom. The 1D writers pad the sides
+// themselves but not the top and bottom, and the Data Matrix writer pads
+// neither.
+func padMatrix(m *gozxing.BitMatrix, x, y int) (*gozxing.BitMatrix, error) {
+	if x == 0 && y == 0 {
 		return m, nil
 	}
 	w, h := m.GetWidth(), m.GetHeight()
-	padded, err := gozxing.NewBitMatrix(w, h+2*margin)
+	padded, err := gozxing.NewBitMatrix(w+2*x, h+2*y)
 	if err != nil {
 		return nil, fmt.Errorf("encode: %w", err)
 	}
-	for y := range h {
-		for x := range w {
-			if m.Get(x, y) {
-				padded.Set(x, y+margin)
+	for row := range h {
+		for col := range w {
+			if m.Get(col, row) {
+				padded.Set(col+x, row+y)
 			}
 		}
 	}

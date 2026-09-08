@@ -106,13 +106,25 @@ func codesFromResults(results []*gozxing.Result) []code {
 
 // resultBytes returns the exact bytes that were originally encoded.
 //
-// It prefers the raw byte-mode segments (BYTE_SEGMENTS metadata) over
-// Result.GetText(), because GetText() runs the decoded bytes through a
-// charset decoder and can mangle data that isn't valid text in that
-// charset. Falling back to GetText() only happens when the symbol was
-// encoded in a mode — NUMERIC or ALPHANUMERIC for QR, and every 1D
-// symbology — whose text is a lossless representation of the data anyway.
+// For QR it prefers the raw byte-mode segments (BYTE_SEGMENTS metadata) over
+// Result.GetText(), because GetText() runs the decoded bytes through a charset
+// decoder and can mangle data that isn't valid text in that charset. Falling
+// back to GetText() only happens when the symbol was encoded in a mode —
+// NUMERIC or ALPHANUMERIC for QR, and every 1D symbology — whose text is a
+// lossless representation of the data anyway.
+//
+// Data Matrix is the exception: its byte segments hold only the Base256 runs,
+// so a symbol that mixes encodations reports far less than it carries. Its
+// text is decoded as ISO-8859-1 and covers everything, so the bytes come back
+// out of that instead.
 func resultBytes(result *gozxing.Result) []byte {
+	if result.GetBarcodeFormat() == gozxing.BarcodeFormat_DATA_MATRIX {
+		if data, ok := fromLatin1String(result.GetText()); ok {
+			return data
+		}
+		return []byte(result.GetText())
+	}
+
 	if segs, ok := result.GetResultMetadata()[gozxing.ResultMetadataType_BYTE_SEGMENTS]; ok {
 		if byteSegments, ok := segs.([][]byte); ok && len(byteSegments) > 0 {
 			var buf bytes.Buffer

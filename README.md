@@ -15,8 +15,8 @@ qrx [-d] [-t TYPE] [-f FORMAT] [-l LEVEL] [-v VERSION] [-s SCALE]
 ```
 
 - `-d` decode: read a barcode image, write the decoded bytes
-- `-t TYPE` symbology to encode: `qr` (default), `code128`, `code39`,
-  `code93`, `codabar`, `ean8`, `ean13`, `upca`, `upce`, `itf`
+- `-t TYPE` symbology to encode: `qr` (default), `datamatrix`, `code128`,
+  `code39`, `code93`, `codabar`, `ean8`, `ean13`, `upca`, `upce`, `itf`
 - `-f FORMAT` encode output format: `unicode` (default), `ansi`, `sixel`,
   `png`, `svg`
 - `-l LEVEL` error correction level: `L`, `M`, `Q`, `H` (`qr` only, default `M`)
@@ -59,10 +59,13 @@ qrx -f svg -fg '#1e3a8a' -bg none -o code.svg 'https://example.com'
 qrx -v 10 -l H -o backup.png < secret.key
 qrx -t ean13 -f png -o barcode.png 5901234123457
 qrx -t code128 -bh 30 'PKG-00417'
+qrx -t datamatrix -f png -o part.png 'PN:4815162342'
 ```
 
-Only `qr` carries arbitrary bytes. The 1D symbologies each accept their own
-alphabet — digits for EAN/UPC/ITF, printable ASCII for Code 128 — and qrx
+Only `qr` carries arbitrary bytes. `datamatrix` is fine for text but should
+not be trusted with binary: content that pushes it into Base256 encodation
+does not survive a round trip through the underlying library. The 1D
+symbologies each accept their own alphabet — digits for EAN/UPC/ITF, printable ASCII for Code 128 — and qrx
 says what a symbology wants when the content does not fit it.
 
 On a dark terminal the block characters render light-on-dark, which is an

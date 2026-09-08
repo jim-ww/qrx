@@ -22,8 +22,9 @@ Encode data to a QR code or a barcode, or decode one back to bytes.
   -d            decode: read a barcode image, write the decoded bytes. Reads
                 QR (several per image), Data Matrix, Aztec, EAN/UPC, Code
                 128/39/93, ITF and Codabar, dark or light on light or dark
-  -t TYPE       symbology to encode: qr (default), code128, code39, code93,
-                codabar, ean8, ean13, upca, upce, itf
+  -t TYPE       symbology to encode: qr (default), datamatrix, code128,
+                code39, code93, codabar, ean8, ean13, upca, upce, itf.
+                Only qr carries arbitrary bytes; datamatrix is for text
   -f FORMAT     encode output format: unicode, ansi, sixel, png, svg
                 (default "unicode")
   -l LEVEL      error correction level: L, M, Q, H (qr only, default "M")
@@ -131,12 +132,14 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		if !ok {
 			return usagef("unknown symbology %q (want %s)", *symbol, symbologyNames())
 		}
-		if sym.oneD {
+		if sym.format != gozxing.BarcodeFormat_QR_CODE {
 			for _, name := range []string{"l", "v"} {
 				if set[name] {
 					return usagef("-%s applies to qr only, not -t %s", name, *symbol)
 				}
 			}
+		}
+		if sym.oneD {
 			// 1D symbologies need a much wider quiet zone than a QR code.
 			if !set["m"] {
 				*margin = oneDQuietZone
@@ -201,9 +204,12 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 	}
 
 	var matrix *gozxing.BitMatrix
-	if sym.oneD {
+	switch {
+	case sym.oneD:
 		matrix, err = encodeBarcode(data, sym, *margin, *barHeight)
-	} else {
+	case sym.format == gozxing.BarcodeFormat_DATA_MATRIX:
+		matrix, err = encodeDataMatrix(data, *margin)
+	default:
 		matrix, err = encodeQR(data, ecLevel, *margin, *version)
 	}
 	if err != nil {

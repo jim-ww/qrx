@@ -21,6 +21,20 @@ func toLatin1String(data []byte) string {
 	return sb.String()
 }
 
+// fromLatin1String is the inverse of toLatin1String: it recovers the bytes
+// from a string whose code points are all U+0000-U+00FF, and reports whether
+// the string was in that range at all.
+func fromLatin1String(s string) ([]byte, bool) {
+	data := make([]byte, 0, len(s))
+	for _, r := range s {
+		if r > 0xff {
+			return nil, false
+		}
+		data = append(data, byte(r))
+	}
+	return data, true
+}
+
 // encodeQR encodes data as a QR code and returns its module matrix (no
 // pixel scaling; one BitMatrix cell == one QR module, including the quiet
 // zone given by margin). ecLevel must already be normalised by parseLevel;
