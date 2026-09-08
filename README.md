@@ -32,7 +32,10 @@ $ qrx 'https://youtu.be/dQw4w9WgXcQ'
 
 ## Install
 
-Requires Go 1.24+.
+Prebuilt binaries for Linux, macOS and Windows are on the
+[releases page](https://github.com/jim-ww/qrx/releases).
+
+Or build it yourself — requires Go 1.24+.
 
 ```sh
 go install github.com/jim-ww/qrx@latest
