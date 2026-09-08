@@ -572,3 +572,61 @@ func TestRenderSVGModules(t *testing.T) {
 		}
 	}
 }
+
+// Data that fits no symbol at all is a different message from data that does
+// not fit the version that was asked for.
+func TestEncodeQRDataTooBig(t *testing.T) {
+	// The largest QR code holds under 3 KB, and less at level H.
+	tooMuch := bytes.Repeat([]byte("x"), 4000)
+
+	t.Run("without a pinned version", func(t *testing.T) {
+		_, err := encodeQR(tooMuch, "M", 4, 0)
+		if err == nil {
+			t.Fatal("encodeQR = nil error, want error")
+		}
+		if !strings.Contains(err.Error(), "-l") || strings.Contains(err.Error(), "-v") {
+			t.Errorf("error %q should suggest -l and not -v, which was not given", err)
+		}
+	})
+
+	t.Run("with a pinned version", func(t *testing.T) {
+		_, err := encodeQR(tooMuch, "M", 4, 40)
+		if err == nil {
+			t.Fatal("encodeQR = nil error, want error")
+		}
+		if !strings.Contains(err.Error(), "-v") {
+			t.Errorf("error %q should suggest a larger -v", err)
+		}
+	})
+}
+
+// A transparent background leaves the terminal's own colour showing, which is
+// a reset rather than a background colour.
+func TestRenderANSITransparentBackground(t *testing.T) {
+	matrix, err := encodeQR([]byte("transparent"), "M", 2, 0)
+	if err != nil {
+		t.Fatalf("encodeQR: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := render(&buf, "ansi", matrix, style{scale: 1, dark: colorBlack, light: colorTransparent}); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	out := buf.String()
+
+	if !strings.Contains(out, "\x1b[48;2;0;0;0m") {
+		t.Error("the dark modules lost their colour")
+	}
+	if strings.Contains(out, "\x1b[48;2;255;255;255m") {
+		t.Error("a transparent background was painted white")
+	}
+
+	// It still has to decode: the parser reads a reset as light.
+	var decoded bytes.Buffer
+	if err := run([]string{"-d"}, &buf, &decoded); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if decoded.String() != "transparent" {
+		t.Errorf("decoded %q, want %q", decoded.String(), "transparent")
+	}
+}

@@ -168,3 +168,51 @@ func TestEscapeAt(t *testing.T) {
 		})
 	}
 }
+
+// Lines end where their last module does, so the parser has to square the grid
+// up itself before anything downstream indexes it.
+func TestParseTerminalGridSquaresRaggedLines(t *testing.T) {
+	// Rows of different lengths, the widest in the middle.
+	ragged := "█▀▄\n█▀▄█▀▄█▀▄\n█\n█▀\n█▀▄█▀\n█▀▄█\n█▀▄█▀▄\n█▀\n"
+
+	grid, err := parseTerminalGrid([]byte(ragged))
+	if err != nil {
+		t.Fatalf("parseTerminalGrid: %v", err)
+	}
+	width := len(grid[0])
+	for y, row := range grid {
+		if len(row) != width {
+			t.Fatalf("row %d is %d wide, want %d", y, len(row), width)
+		}
+	}
+	// The widest line was 9 characters, plus a quiet zone on each side.
+	if want := 9 + 2*parsedQuietZone; width != want {
+		t.Errorf("width = %d, want %d", width, want)
+	}
+}
+
+func TestPadGrid(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		if got := padGrid(nil, 4); len(got) != 0 {
+			t.Errorf("padGrid(nil) = %v, want it left alone", got)
+		}
+	})
+
+	t.Run("surrounds the grid", func(t *testing.T) {
+		grid := padGrid([][]bool{{true, true}, {true, true}}, 2)
+		if len(grid) != 6 {
+			t.Fatalf("height = %d, want 6", len(grid))
+		}
+		for y, row := range grid {
+			if len(row) != 6 {
+				t.Fatalf("row %d is %d wide, want 6", y, len(row))
+			}
+			for x, dark := range row {
+				inside := x >= 2 && x < 4 && y >= 2 && y < 4
+				if dark != inside {
+					t.Fatalf("cell (%d,%d) = %v, want %v", x, y, dark, inside)
+				}
+			}
+		}
+	})
+}

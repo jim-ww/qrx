@@ -399,3 +399,82 @@ func TestRunRejectsEncodingFlagsWhenDecoding(t *testing.T) {
 		})
 	}
 }
+
+// errFailing is returned by the readers and writers below, which exist to
+// prove the I/O errors are reported rather than dropped.
+var errFailing = errors.New("failing on purpose")
+
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) { return 0, errFailing }
+
+// failingWriter fails once it has accepted after bytes.
+type failingWriter struct{ after int }
+
+func (w *failingWriter) Write(p []byte) (int, error) {
+	if w.after <= 0 {
+		return 0, errFailing
+	}
+	n := min(len(p), w.after)
+	w.after -= n
+	if n < len(p) {
+		return n, errFailing
+	}
+	return n, nil
+}
+
+func TestRunReportsInputErrors(t *testing.T) {
+	t.Run("stdin fails while encoding", func(t *testing.T) {
+		if err := run(nil, failingReader{}, &bytes.Buffer{}); !errors.Is(err, errFailing) {
+			t.Errorf("run = %v, want the read error", err)
+		}
+	})
+
+	t.Run("stdin fails while decoding", func(t *testing.T) {
+		if err := run([]string{"-d"}, failingReader{}, &bytes.Buffer{}); !errors.Is(err, errFailing) {
+			t.Errorf("run = %v, want the read error", err)
+		}
+	})
+}
+
+func TestRunReportsOutputErrors(t *testing.T) {
+	t.Run("output file cannot be created", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "no-such-directory", "code.png")
+		if err := run([]string{"-o", path, "data"}, strings.NewReader(""), &bytes.Buffer{}); err == nil {
+			t.Error("run = nil error, want the create error")
+		}
+	})
+
+	t.Run("writing the output fails", func(t *testing.T) {
+		if err := run([]string{"data"}, strings.NewReader(""), &failingWriter{}); !errors.Is(err, errFailing) {
+			t.Errorf("run = %v, want the write error", err)
+		}
+	})
+}
+
+func TestWriteCodesReportsWriteErrors(t *testing.T) {
+	codes := []code{{data: []byte("first")}, {data: []byte("second")}}
+
+	tests := []struct {
+		name  string
+		after int
+	}{
+		{"fails on the first code", 0},
+		{"fails on the separator", len("first")},
+		{"fails on the second code", len("first\n")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := writeCodes(&failingWriter{after: tt.after}, codes); !errors.Is(err, errFailing) {
+				t.Errorf("writeCodes = %v, want the write error", err)
+			}
+		})
+	}
+
+	t.Run("a single code reports it too", func(t *testing.T) {
+		if err := writeCodes(&failingWriter{}, codes[:1]); !errors.Is(err, errFailing) {
+			t.Errorf("writeCodes = %v, want the write error", err)
+		}
+	})
+}
