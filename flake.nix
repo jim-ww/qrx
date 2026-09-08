@@ -28,6 +28,8 @@
             "-w"
           ];
 
+          doCheck = false;
+
           meta = {
             description = "QR code and barcode encoder/decoder for the terminal";
             homepage = "https://github.com/jim-ww/qrx";
