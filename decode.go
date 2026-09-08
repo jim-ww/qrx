@@ -84,6 +84,9 @@ func readers(hints map[gozxing.DecodeHintType]any) []gozxing.Reader {
 	return []gozxing.Reader{
 		datamatrix.NewDataMatrixReader(),
 		aztec.NewAztecReader(),
+		// UPC-A before the UPC/EAN reader: it recognises the same symbol but
+		// reports it as UPC-A without the EAN-13 leading zero.
+		oned.NewUPCAReader(),
 		oned.NewMultiFormatUPCEANReader(hints),
 		oned.NewCode128Reader(),
 		oned.NewCode39Reader(),

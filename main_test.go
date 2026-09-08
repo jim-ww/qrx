@@ -5,8 +5,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestRunUsageErrors(t *testing.T) {
@@ -249,5 +251,78 @@ func TestRunColoredRoundTrip(t *testing.T) {
 	}
 	if decoded.String() != data {
 		t.Errorf("decoded %q, want %q", decoded.String(), data)
+	}
+}
+
+func TestRunBarcode(t *testing.T) {
+	const ean = "5901234123457"
+
+	var encoded bytes.Buffer
+	if err := run([]string{"-t", "ean13", "-f", "png", ean}, strings.NewReader(""), &encoded); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+
+	var decoded bytes.Buffer
+	if err := run([]string{"-d"}, &encoded, &decoded); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if decoded.String() != ean {
+		t.Errorf("decoded %q, want %q", decoded.String(), ean)
+	}
+}
+
+// The 1D symbologies need a wider quiet zone than a QR code, so -m defaults
+// differently for them — but an explicit -m always wins.
+func TestRunBarcodeDefaultMargin(t *testing.T) {
+	widthOf := func(t *testing.T, args ...string) int {
+		t.Helper()
+		var out bytes.Buffer
+		if err := run(append(args, "5901234123457"), strings.NewReader(""), &out); err != nil {
+			t.Fatalf("run(%q): %v", args, err)
+		}
+		// Count runes: the block characters are multi-byte.
+		line, _, _ := strings.Cut(out.String(), "\n")
+		return utf8.RuneCountInString(line)
+	}
+
+	if got, want := widthOf(t, "-t", "ean13"), widthOf(t, "-t", "ean13", "-m", strconv.Itoa(oneDQuietZone)); got != want {
+		t.Errorf("default width = %d, want the -m %d width %d", got, oneDQuietZone, want)
+	}
+	if got, want := widthOf(t, "-t", "ean13", "-m", "0"), widthOf(t, "-t", "ean13"); got >= want {
+		t.Errorf("-m 0 width = %d, want less than the default %d", got, want)
+	}
+}
+
+func TestRunBarcodeUsageErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"unknown symbology", []string{"-t", "qrcode", "data"}},
+		{"level is qr only", []string{"-t", "ean13", "-l", "H", "5901234123457"}},
+		{"version is qr only", []string{"-t", "ean13", "-v", "5", "5901234123457"}},
+		{"bar height is 1D only", []string{"-bh", "20", "data"}},
+		{"negative bar height", []string{"-t", "ean13", "-bh", "-1", "5901234123457"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ue *usageError
+			if err := run(tt.args, strings.NewReader(""), &bytes.Buffer{}); !errors.As(err, &ue) {
+				t.Errorf("run(%q) error = %v, want *usageError", tt.args, err)
+			}
+		})
+	}
+}
+
+// Content the symbology cannot hold is a data error, not a usage error.
+func TestRunBarcodeBadContent(t *testing.T) {
+	err := run([]string{"-t", "ean13", "12345"}, strings.NewReader(""), &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("run(-t ean13) with 5 digits = nil error, want error")
+	}
+	var ue *usageError
+	if errors.As(err, &ue) {
+		t.Errorf("error = %v, want a plain error, not a usage error", err)
 	}
 }

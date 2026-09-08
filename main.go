@@ -10,25 +10,32 @@ import (
 	"os"
 	"slices"
 	"strings"
+
+	"github.com/makiuchi-d/gozxing"
 )
 
-const usage = `Usage: qrx [-d] [-f FORMAT] [-l LEVEL] [-v VERSION] [-s SCALE] [-m MARGIN]
-           [-i] [-fg COLOR] [-bg COLOR] [-o FILE] [FILE]
+const usage = `Usage: qrx [-d] [-t TYPE] [-f FORMAT] [-l LEVEL] [-v VERSION] [-s SCALE]
+           [-m MARGIN] [-bh HEIGHT] [-i] [-fg COLOR] [-bg COLOR] [-o FILE] [FILE]
 
-Encode data to a QR code, or decode one back to bytes.
+Encode data to a QR code or a barcode, or decode one back to bytes.
 
   -d            decode: read a barcode image, write the decoded bytes. Reads
                 QR (several per image), Data Matrix, Aztec, EAN/UPC, Code
                 128/39/93, ITF and Codabar, dark or light on light or dark
+  -t TYPE       symbology to encode: qr (default), code128, code39, code93,
+                codabar, ean8, ean13, upca, upce, itf
   -f FORMAT     encode output format: unicode, ansi, sixel, png, svg
                 (default "unicode")
-  -l LEVEL      error correction level: L, M, Q, H (default "M")
+  -l LEVEL      error correction level: L, M, Q, H (qr only, default "M")
   -v VERSION    symbol version 1-40, i.e. size; 0 picks the smallest that
-                fits the data (default 0)
+                fits the data (qr only, default 0)
   -s SCALE      scale: repeat factor for unicode/ansi/sixel, pixels per
                 module for png/svg (0 picks the format default: 1, or 8 for
                 png and svg)
-  -m MARGIN     quiet zone width in modules; the QR spec asks for 4 (default 4)
+  -m MARGIN     quiet zone width in modules (default 4 for qr, 10 for the 1D
+                symbologies, which need the wider zone)
+  -bh HEIGHT    bar height in modules for the 1D symbologies; 0 follows the
+                symbol width (default 0)
   -i            invert: light modules on a dark background
   -fg COLOR     colour of the dark modules (default "black")
   -bg COLOR     colour of the background (default "white")
@@ -46,6 +53,7 @@ Examples:
   qrx -d hello.png
   qrx -f sixel 'WIFI:S:myssid;T:WPA;P:pass123;;'
   qrx -f svg -fg '#1e3a8a' -bg none -o code.svg 'https://example.com'
+  qrx -t ean13 -f png -o barcode.png 5901234123457
 `
 
 func main() {
@@ -79,7 +87,9 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 	format := fs.String("f", "unicode", "")
 	level := fs.String("l", "M", "")
 	scale := fs.Int("s", 0, "")
+	symbol := fs.String("t", "qr", "")
 	margin := fs.Int("m", 4, "")
+	barHeight := fs.Int("bh", 0, "")
 	version := fs.Int("v", 0, "")
 	invert := fs.Bool("i", false, "")
 	fg := fs.String("fg", "black", "")
@@ -94,11 +104,17 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		_, err := fmt.Fprint(stdout, usage)
 		return err
 	}
+	set := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+
 	if fs.NArg() > 1 {
 		return usagef("too many arguments")
 	}
 	if *margin < 0 {
 		return usagef("invalid -m: must be >= 0")
+	}
+	if *barHeight < 0 {
+		return usagef("invalid -bh: must be >= 0")
 	}
 	if *scale < 0 {
 		return usagef("invalid -s: must be >= 0")
@@ -110,7 +126,24 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		ecLevel string
 		st      style
 	)
+	sym, ok := symbologies[*symbol]
 	if !*decode {
+		if !ok {
+			return usagef("unknown symbology %q (want %s)", *symbol, symbologyNames())
+		}
+		if sym.oneD {
+			for _, name := range []string{"l", "v"} {
+				if set[name] {
+					return usagef("-%s applies to qr only, not -t %s", name, *symbol)
+				}
+			}
+			// 1D symbologies need a much wider quiet zone than a QR code.
+			if !set["m"] {
+				*margin = oneDQuietZone
+			}
+		} else if set["bh"] {
+			return usagef("-bh applies to the 1D symbologies only, not -t %s", *symbol)
+		}
 		if ecLevel, err = parseLevel(*level); err != nil {
 			return usagef("%v", err)
 		}
@@ -167,7 +200,12 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		}
 	}
 
-	matrix, err := encodeQR(data, ecLevel, *margin, *version)
+	var matrix *gozxing.BitMatrix
+	if sym.oneD {
+		matrix, err = encodeBarcode(data, sym, *margin, *barHeight)
+	} else {
+		matrix, err = encodeQR(data, ecLevel, *margin, *version)
+	}
 	if err != nil {
 		return err
 	}
