@@ -4,9 +4,6 @@ Minimalistic QR code and barcode encoder/decoder for the terminal. Encodes
 arbitrary bytes (not just text) to a QR code and decodes them back exactly,
 byte for byte, and writes the common 1D barcode symbologies too.
 
-Behaves like a Unix filter (`base64`, `gzip`): reads from a file argument or
-stdin, writes to stdout or `-o FILE`.
-
 ```console
 $ qrx 'https://youtu.be/dQw4w9WgXcQ'
 
@@ -119,21 +116,13 @@ qrx -t code128 -bh 30 'PKG-00417'
 qrx -t datamatrix -f png -o part.png 'PN:4815162342'
 ```
 
-Only `qr` carries arbitrary bytes. `datamatrix` is fine for text but should
-not be trusted with binary: content that pushes it into Base256 encodation
-does not survive a round trip through the underlying library. The 1D
-symbologies each accept their own alphabet — digits for EAN/UPC/ITF, printable ASCII for Code 128 — and qrx
-says what a symbology wants when the content does not fit it.
+Only `qr` carries arbitrary bytes. `datamatrix` is reliable for text but not
+for binary.
 
-On a dark terminal the block characters render light-on-dark, which is an
-inverted code — use `-i` if your scanner refuses it.
+On a dark terminal the blocks come out light-on-dark — an inverted code, so
+pass `-i` if a scanner refuses it.
 
-`svg` and `png` are the formats to keep; `unicode`, `ansi` and `sixel` are
-for reading on screen.
-
-`sixel` is the one output `qrx -d` cannot read back: it is a real image
-encoding, and the library behind it only encodes. Everything else — `png`,
-`unicode`, `ansi` — round trips. `svg` does not decode either.
+`-d` reads back `png`, `unicode` and `ansi`, but not `sixel` or `svg`.
 
 ## Support the project
 
